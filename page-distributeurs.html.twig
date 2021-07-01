@@ -1,0 +1,315 @@
+{% extends "structure/base.html.twig" %}
+{% block content %}
+<section class="article-content contact-container">
+	<div class="contenu-page-inte d-flex flex-wrap bg-degraded-blue py-5" id="center">
+		<form method="POST" action="">
+			<input type="text" name="cp" value="{{getValuePost}}" required="required" />
+			<button type="submit" class="">Rechercher</button>
+		</form>
+    </div>
+    <div class="">
+        {# js #}
+        <div id="map"></div>
+        
+    </div>
+    <div class="notif">
+    	<p class="alert-msg">{{notResult}}</p>
+	</div>
+</section>
+{# script carte #}
+<script src="//maps.googleapis.com/maps/api/js?key={{api_key_google_map}}"></script>
+<script src="{{site.theme.link}}/scripts/spe/infobulle.js"></script>
+{% if mapMarker is empty %}
+    <script src="{{site.theme.link}}/scripts/spe/custom-cart.js"></script>
+{% else %}
+	<script type="text/javascript">
+	var coordCercle = {{dataPost}};
+	var post 	= {{dataPost}};
+	var entryList = {{getData}};
+	var entries = {{getData}};
+	var map;
+	var area = 30;
+	$(document).ready(function()
+	{
+		var currentUrl = window.location.href;
+		initMap();
+		manageMyPostionClick();
+
+	});
+
+	function checkEmpty(data) {
+	  return (data !== null ||  data !== undefined);
+	}
+
+	function initMap()
+	{
+		prevMarker = null,
+		markers    = new Array(),
+		infoBulles = new Array();
+		// initialisation :
+		initializeMap();
+		generateMapPoints();
+		adjustDimensions();
+	}
+
+	function compareTime(dateString, now) {
+		return (now - dateString) > 86400000;
+	}
+
+	function addPoint(id, data)
+	{
+		if (data === undefined || data === null || data === 0) {
+			return;
+		}
+		// création de la coordonnée :
+		var latLng = new google.maps.LatLng(parseFloat(data.lat), parseFloat(data.lng));
+		// création du marker
+		var marker = new google.maps.Marker({
+			position  : latLng,
+			map       : map,
+			id_marker : data.id,
+			clickable : true,
+			optimized : false,
+			//icon      : '{{site.theme.link}}/img/icons/location-pin.png'
+		});
+		markers[id] = marker;
+
+		var icons = '';
+		if (data['familiesIcons']) {
+			$.each(data['familiesIcons'], function(index, val) {
+				icons += ' <li class="' + val + '"></li>'
+			});
+		}
+		var content ='<div class="inmymap">'
+					+'<p class="like-h2">' + data.entry + '</p>'
+					+'<p>' + data.address + '</p>'
+					+'<p>' + data.postCode + '</p>'
+					+'<p>' + data.city + '</p>'
+					//+'<ul class="solution_dispo_point"> ' + icons + ' </ul>'
+					+ '</div>';
+		// affichage d'une popup avec la libellé de la résidence au click sur le marker
+		google.maps.event.addListener(marker, 'click', showInfoBubble);
+		function showInfoBubble()
+		{
+
+			var bulle = infoBulles[marker.id_marker];
+
+			if (bulle == undefined) {
+				// Nouvelle version de l'infobulle
+				bulle = new InfoBubble({
+					map       : marker.getMap(),
+					content   : content,
+					position  : marker.position,
+					height    : 40,
+					minWidth  : 150
+				});
+				infoBulles[marker.id_marker] = bulle;
+			}
+			bulle.open(marker.getMap() ,marker);
+		}
+
+	}
+
+	function generateMapPoints(ids)
+	{
+		markers    = new Array();
+		infoBulles = new Array();
+
+		createMap(entries);
+	}
+
+	function createMap(entryList) {
+		$('#message').hide();
+		$('#message').html('');
+		// création de la map
+		markers = new Array();
+		
+		for (var i in entryList) {
+			r = entryList[i];
+			addPoint(i, r);
+			infoBulles[i] = null;
+		}
+
+		// définitions du bounds
+		var myPoints = [];
+		for(var i in markers) {
+			latLng = new google.maps.LatLng(markers[i].position.lat() , markers[i].position.lng());
+			if (markers[i].position.lat() != 0 && markers[i].position.lng() != 0) {
+				myPoints.push(latLng);
+			}
+		}
+		if (myPoints.length > 0) {
+			var bounds = new google.maps.LatLngBounds();
+			for(var i = 0; i < myPoints.length; i++){
+				bounds.extend(myPoints[i]);
+			}
+			map.fitBounds(bounds);
+		}
+		if (markers.length == 0) {
+			$('#message').show();
+			var searchVal = $('#city').val();
+			var coordVal = $('#coord').val();
+			searchVal = coordVal == '' ? (searchVal == '' ? 'pour votre recherche.' : 'pour ' + searchVal) : 'autour de vous';
+			$('#message').html('Aucun point d\'accueil ' + searchVal + ' ');
+		}
+		if (area > 0 && coordCercle != null) {
+			latLng = new google.maps.LatLng(coordCercle.lat, coordCercle.lng);
+			optionsCercle = {
+				map: map,
+				center: latLng,
+				radius: (area * 1000),
+				fillColor: "#009fe3", // couleur de remplissage du cercle
+				fillOpacity: 0.2, // opacité de remplissage du cercle
+				strokeColor: "#009fe3", // couleur de la bordure du cercle
+				strokeOpacity: 0.5 // opacité de la bordure du cercle
+			}
+			monCercle = new google.maps.Circle(optionsCercle);
+		} else {
+			$('#area').val("");
+		}
+	}
+
+	function initializeMap()
+	{
+		map = new google.maps.Map(document.getElementById('map'), {
+		  zoom: 4,
+		  /* Zoom level of your map */
+		  center: new google.maps.LatLng(47.393245, -2.247669),
+		  /* coordinates for the center of your map */
+		  mapTypeId: google.maps.MapTypeId.ROADMAP
+		});
+
+		var infowindow = new google.maps.InfoWindow();
+	}
+
+
+	// Sets the map on all markers in the array.
+	function setMapOnAll(map) {
+		for (var i = 0; i < markers.length; i++) {
+			if (markers[i] !== undefined) {
+				markers[i].setMap(map);
+			}
+			if(infoBulles[i] != undefined){
+				infoBulles[i].close();
+			}
+		}
+
+	}
+
+	function adjustDimensions()
+	{
+		// Calcul de dimension pour l'affichage de la carte
+		var windowHeight = $(window).height(),
+		div_map          = $('#map'),
+		div_mapHeight    = 0,
+		fullWidth        = $('.fullWidth'),
+		entryList        = $('#list'),
+		explication      = $('.explication'),
+		allHeight        = $('#header').innerHeight()
+						  + parseInt($('#wrapper').css('padding-bottom').split('px')[0])
+						  + explication.innerHeight()
+						  + $('#footer h2').outerHeight(true),
+		offset           = 10,
+		totalHeight      = windowHeight - allHeight - offset;
+		div_mapHeight = div_map.height();
+		div_map.height(500);
+
+		// Définition de la largeur de la carte
+		div_map.width('99%');
+
+		// Placement de la hauteur de l'explication
+		explication.css({
+			'top' : div_map.height() + 110
+		});
+	}
+
+	function hashCode(str) {
+	  return str.split('').reduce(function(prevHash, currVal) {
+	    (((prevHash << 5) - prevHash) + currVal.charCodeAt(0))|0, 0});
+	}
+	function updateOrCreateDate() {
+		var lastUpdate;
+		var lastUpdateTimestamp = new Date().getTime().toString();
+		if (localStorage.getItem("lastUpdate")) {
+			lastUpdate = JSON.parse(localStorage.getItem("lastUpdate")),
+	    	dateString = lastUpdate.timestamp,
+	    	now = new Date().getTime().toString();
+	    	if (!compareTime(dateString, now)) {
+	    		lastUpdateTimestamp = dateString;
+	    	} else {
+	    		localStorage.clear();
+	    	}
+		}
+		try {
+			var object = {value: "lastUpdate", timestamp: lastUpdateTimestamp}
+			localStorage.setItem("lastUpdate", JSON.stringify(object));
+		} catch(e) {
+			if (e.code == 22) {
+				localStorage.clear();
+				localStorage.setItem(hashCode(params), JSON.stringify(data));
+			}
+
+		}
+	}
+	function manageMyPostionClick() {
+		if (!navigator.geolocation) {
+			$('.position-local').hide()
+		}
+		$('#specif_btn_near').click(function(event) {
+			event.preventDefault();
+			showPosition();
+		});
+		$('#city').blur(function(event) {
+			$('#coord').val('');
+		});
+		$( "#city, #specif_btn_near").keypress(function( event ) {
+		  if ( event.which == 13 ) {
+		     event.preventDefault();
+		  }
+		});
+	}
+	function showPosition() {
+			$('#message').hide();
+			$('#message').html('');
+	        if(navigator.geolocation) {
+	            navigator.geolocation.getCurrentPosition(function(position) {
+	            	$('#coord').val(position.coords.latitude + '|' + position.coords.longitude );
+					$('#city').val('');
+	                $('#filterForm').submit();
+	            });
+	        } else {
+				$('#coord').val('');
+				$('#message').html('Votre navigateur ne supporte pas la geolocalisation');
+				$('#message').show();
+	        }
+	    }
+
+	</script>
+{% endif %}
+<style type="text/css">
+    #map {
+        width: 100%;
+        height: 50vh;
+        background: gray;
+    }
+    .list_item {
+        position: unset;
+        margin-bottom: 30px !important;
+        cursor: pointer;
+    }
+    .list_item img {
+        margin: 0 15px;
+    }
+    .list_item_bg {
+        background-color: #f3f3f3;
+        padding: 10px 0;
+    }
+    .like-h2{
+    	font-size: 9px;
+    }
+    #center{
+	    justify-content: center;
+    	align-items: center;
+    }
+</style>
+{% endblock %}
